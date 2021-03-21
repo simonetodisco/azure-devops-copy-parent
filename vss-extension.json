@@ -1,11 +1,23 @@
 {
   "manifestVersion": 1,
-  "version": "0.1.2",
+  "version": "0.1.4",
   "name": "Copy Parent",
   "description": "This is extension allows you to automatically copy some work item parent's information.",
   "publisher": "simotod",
   "demands": ["api-version/3.0"],
   "categories": ["Azure Boards"],
+  "tags": [
+    "Copy",
+    "Work Item",
+    "Parent",
+    "Tags",
+    "Area",
+    "Iteration"
+  ],
+  "repository": {
+    "type": "git",
+    "uri": "https://github.com/simonetodisco/azure-devops-copy-parent"
+  },
   "scopes": ["vso.work", "vso.work_write", "vso.work_full"],
   "targets": [
     {
@@ -39,7 +51,7 @@
     {
       "id": "copy-parent-hub-group",
       "type": "ms.vss-web.hub",
-      "description": "Sample hub group",
+      "description": "Hub group in which is possible to update extension settings.",
       "targets": ["ms.vss-work-web.work-hub-group"],
       "properties": {
         "name": "Copy Parent",
