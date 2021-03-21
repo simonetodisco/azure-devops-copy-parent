@@ -43,9 +43,9 @@ class Hub extends React.Component<{}, State> {
     this._dataManager = await extDataService.getExtensionDataManager(SDK.getExtensionContext().id, accessToken)
 
     const settings: Settings = await this._dataManager.getValue('settings')
-    console.log(settings)
+
     this.setState({
-      settings,
+      settings: settings ? settings : this.state.settings,
       cmpReady: true,
     })
   }
