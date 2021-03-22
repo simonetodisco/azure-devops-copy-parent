@@ -3,10 +3,10 @@ const fs = require("fs");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 
 const entries = {};
-const srcDir = path.join(__dirname, "src");
+const srcDir = path.join(__dirname, "src", "contributions");
 fs.readdirSync(srcDir)
   .filter(dir => fs.statSync(path.join(srcDir, dir)).isDirectory())
-  .forEach(dir => (entries[dir] = "./" + path.join("src", dir, dir)));
+  .forEach(dir => (entries[dir] = "./" + path.join("src", "contributions", dir, dir)));
 
 module.exports = {
   target: "web",
@@ -64,7 +64,7 @@ module.exports = {
       }
     ]
   },
-  plugins: [new CopyWebpackPlugin([{ from: "**/*.html", context: "src" }])],
+  plugins: [new CopyWebpackPlugin([{ from: "**/*.html", context: path.join("src", "contributions") }])],
   externals: [
     function (context, request, callback) {
       // capture VSS.Require
