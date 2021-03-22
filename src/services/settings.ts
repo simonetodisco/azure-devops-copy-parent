@@ -1,5 +1,5 @@
 import { IExtensionDataManager } from 'azure-devops-extension-api'
-import { ISettings, getEmptySettings } from '../models/settings'
+import { ISettings, initSettings } from '../models/settings'
 import { getStorageManager } from './storage'
 import { getProject } from './project'
 
@@ -22,7 +22,12 @@ export class SettingsService implements ISettingsService {
       this.getManager(),
     ]);
 
-    await this.manager?.createDocument(COPY_PARENT_SETTINGS, { id: this.projectId, ...getEmptySettings() })
+    try {
+      await this.manager?.createDocument(COPY_PARENT_SETTINGS, { ...initSettings(), id: this.projectId })
+    } catch (e) {
+      // in case of failure it means the settings document was already created
+      console.error(e)
+    }
 
     this.initialized = true
   }
@@ -32,7 +37,7 @@ export class SettingsService implements ISettingsService {
 
     await this.manager?.setDocument(
       COPY_PARENT_SETTINGS,
-      { id: this.projectId, ...settings }
+      { ...settings, id: this.projectId, __etag: -1 }
     )
 
     return settings
@@ -41,8 +46,8 @@ export class SettingsService implements ISettingsService {
   async getSettings () {
     if (!this.initialized || !this.projectId) throw this.getInitException()
 
-    const project = await this.manager?.getDocument(COPY_PARENT_SETTINGS, this.projectId)
-    return project
+    const settings: ISettings = await this.manager?.getDocument(COPY_PARENT_SETTINGS, this.projectId)
+    return { ...initSettings(settings) }
   }
 
   private async getProjectId () {
