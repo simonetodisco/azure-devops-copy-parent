@@ -1,10 +1,10 @@
 import * as SDK from 'azure-devops-extension-sdk'
-import { getClient, CommonServiceIds, IExtensionDataService, IExtensionDataManager } from 'azure-devops-extension-api'
+import { getClient } from 'azure-devops-extension-api'
 import { WorkItemTrackingRestClient, WorkItem } from 'azure-devops-extension-api/WorkItemTracking'
+import { SettingsService } from '../../services/settings'
 
 const register = async () => {
   await SDK.init()
-  await SDK.ready()
 
   let idToParent: { [key: number]: { parentId: number, updated: boolean} } = {}
   SDK.register(SDK.getContributionId(), () => {
@@ -35,14 +35,10 @@ const register = async () => {
         // if not items have to be update or were all updated, return
         if (!Object.keys(idToParent).length || Object.values(idToParent).some(i => i.updated)) return
 
-        const [ accessToken, extDataService ] = await Promise.all([
-          SDK.getAccessToken(),
-          SDK.getService<IExtensionDataService>(CommonServiceIds.ExtensionDataService)
-        ])
+        const settingsService = new SettingsService()
+        await settingsService.init()
 
-        const dataManager = await extDataService.getExtensionDataManager(SDK.getExtensionContext().id, accessToken)
-
-        const settings: Settings = await dataManager.getValue('settings')
+        const settings = await settingsService.getSettings()
 
         // check if at least one setting is true, otherwise will return
         if (!Object.values(settings).some((s: boolean) => s)) return
