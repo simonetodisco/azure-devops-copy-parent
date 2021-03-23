@@ -64,13 +64,17 @@ const register = async () => {
           const wiId = id as unknown as number
           const parentId = idToParent[wiId].parentId
 
-          if (!idToParent[wiId].updated) {
+          const child = workItems[wiId]
+          const parent = workItems[parentId]
+
+          // copy items just if child was not already updated and bot work item's project is the same
+          if (!idToParent[wiId].updated && child.fields['System.TeamProject'] === parent.fields['System.TeamProject']) {
             const payload = []
             if (settings.area) {
               payload.push({
                 op: 'add',
                 path: '/fields/System.AreaPath',
-                value: workItems[parentId].fields['System.AreaPath'],
+                value: parent.fields['System.AreaPath'],
               })
             }
 
@@ -78,7 +82,7 @@ const register = async () => {
               payload.push({
                 op: 'add',
                 path: '/fields/System.IterationPath',
-                value: workItems[parentId].fields['System.IterationPath'],
+                value: parent.fields['System.IterationPath'],
               })
             }
 
@@ -89,8 +93,8 @@ const register = async () => {
                 path: '/fields/System.Tags',
                 value: [
                   ...new Set([
-                    ...getTags(workItems[wiId].fields['System.Tags']),
-                    ...getTags(workItems[parentId].fields['System.Tags']),
+                    ...getTags(child.fields['System.Tags']),
+                    ...getTags(parent.fields['System.Tags']),
                   ])
                 ].join(','),
               })
