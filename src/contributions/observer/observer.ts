@@ -2,39 +2,40 @@ import * as SDK from 'azure-devops-extension-sdk'
 import { getClient } from 'azure-devops-extension-api'
 import { WorkItemTrackingRestClient, WorkItem } from 'azure-devops-extension-api/WorkItemTracking'
 import { SettingsService } from '../../services/settings'
+import { contentsOverflow } from 'VSS/Utils/UI'
 
 const register = async () => {
   await SDK.init()
 
-  let idToParent: { [key: number]: { parentId: number, updated: boolean} } = {}
+  let idToParent: { [key: number]: { parentId: number, alreadyUpdated: boolean } } = {}
   SDK.register(SDK.getContributionId(), () => {
     return {
       // Called when the active work item is modified
       onFieldChanged: async (args: any) => {
-        const wiId = parseInt(args.id)
-        const parentId = args.changedFields['System.Parent']
+        console.log(args)
+        const curChildId = parseInt(args.id)
+        const curParentId = args.changedFields['System.Parent']
+        const curIdToParent = idToParent[curChildId]
 
-        if (parentId === null) {
-          delete idToParent[wiId]
-        } else if (
-          wiId !== 0 &&
-          (
-            (!isNaN(parentId) && !idToParent[wiId]) ||
-            (parentId && idToParent[wiId].parentId !== parentId)
-          )
-        ) {
-          idToParent[wiId] = {
-            parentId: parentId,
-            updated: false
+        if (curChildId && curParentId && (!curIdToParent || curIdToParent.parentId !== curParentId)) {
+          idToParent[curChildId] = {
+            parentId: curParentId,
+            alreadyUpdated: false,
           }
         }
+        console.log('idToParent is: ', idToParent)
       },
 
       // Called after the work item has been saved
       onSaved: async (args: any) => {
-        // if not items have to be update or were all updated, return
-        if (!Object.keys(idToParent).length || Object.values(idToParent).some(i => i.updated)) return
+        console.log('saving....', args)
+        const childId = args.id
+        const { parentId, alreadyUpdated } = idToParent[childId]
 
+        if (!childId || !parentId || alreadyUpdated) return
+
+        console.log('childId: ', childId)
+        console.log('parentId: ', parentId)
         const settingsService = new SettingsService()
         await settingsService.init()
 
@@ -43,76 +44,80 @@ const register = async () => {
         // check if at least one setting is true, otherwise will return
         if (!Object.values(settings).some((s: boolean) => s)) return
 
-        // collecting all workitems to be updated (child and its parent) in a unique variable
-        const workItemIds = (Object.keys(idToParent) as unknown as number[])
-          .reduce((acc: number[], k: number) => {
-            if (!idToParent[k].updated) return [...new Set([...acc, k, idToParent[k].parentId])]
-            return acc
-          }, [])
-
         const clt = getClient(WorkItemTrackingRestClient)
 
         // creating an object, work item id => work item
-        const workItems: { [key: number]: WorkItem } = (await clt.getWorkItems(workItemIds))
-          .reduce((acc: { [key: number]: any }, cur) => {
+        const workItems: { [key: number]: WorkItem } = (await clt.getWorkItems(
+          [childId, parentId],
+          undefined,
+          ['System.TeamProject', 'System.AreaPath', 'System.IterationPath', 'System.Tags', 'System.Parent']
+        )).reduce(
+          (acc: { [key: number]: any }, cur) => {
             acc[cur.id] = cur
             return acc
-          }, {})
+          },
+          {}
+        )
 
-        const wiToUpdate = []
-        for (const id in idToParent) {
-          const wiId = id as unknown as number
-          const parentId = idToParent[wiId].parentId
+        console.log('witems: ', workItems)
+        const childWi = workItems[childId]
+        const parentWi = workItems[parentId]
 
-          const child = workItems[wiId]
-          const parent = workItems[parentId]
-
-          // copy items just if child was not already updated and bot work item's project is the same
-          if (!idToParent[wiId].updated && child.fields['System.TeamProject'] === parent.fields['System.TeamProject']) {
-            const payload = []
-            if (settings.area) {
-              payload.push({
-                op: 'add',
-                path: '/fields/System.AreaPath',
-                value: parent.fields['System.AreaPath'],
-              })
-            }
-
-            if (settings.iteration) {
-              payload.push({
-                op: 'add',
-                path: '/fields/System.IterationPath',
-                value: parent.fields['System.IterationPath'],
-              })
-            }
-
-            if (settings.tags) {
-              payload.push({
-                from: null,
-                op: 'add',
-                path: '/fields/System.Tags',
-                value: [
-                  ...new Set([
-                    ...getTags(child.fields['System.Tags']),
-                    ...getTags(parent.fields['System.Tags']),
-                  ])
-                ].join(','),
-              })
-            }
-
-            if (payload.length) wiToUpdate.push(clt.updateWorkItem(payload, wiId))
-            idToParent[wiId].updated = true
+        // copy items just if child was not already updated and bot work item's project is the same
+        if (childWi.fields['System.TeamProject'] === parentWi.fields['System.TeamProject']) {
+          const payload = []
+          if (settings.area) {
+            payload.push({
+              op: 'add',
+              path: '/fields/System.AreaPath',
+              value: parentWi.fields['System.AreaPath'],
+            })
           }
+
+          if (settings.iteration) {
+            payload.push({
+              op: 'add',
+              path: '/fields/System.IterationPath',
+              value: parentWi.fields['System.IterationPath'],
+            })
+          }
+
+          if (settings.tags) {
+            payload.push({
+              from: null,
+              op: 'add',
+              path: '/fields/System.Tags',
+              value: [
+                ...new Set([
+                  ...getTags(childWi.fields['System.Tags']),
+                  ...getTags(parentWi.fields['System.Tags']),
+                ])
+              ].join(','),
+            })
+          }
+
+          if (payload.length) await clt.updateWorkItem(payload, childId)
         }
 
-        if (wiToUpdate.length) await Promise.all(wiToUpdate)
+        idToParent[childId].alreadyUpdated = true
+
+        /**
+          * This logic prevents an issue when a child is created from its parent. In this situation also the parent
+          * of the child's parent (grandparent) will call the onFieldChanged by including the parent field.
+        */
+        const grandParentId = parentWi.fields['System.Parent']
+        if (grandParentId) {
+          const curParentToGrandParent = idToParent[parentId]
+          if (curParentToGrandParent && curParentToGrandParent.parentId === grandParentId) {
+            idToParent[parentId].alreadyUpdated = true
+          } else {
+            idToParent[parentId] = {
+              parentId: grandParentId,
+              alreadyUpdated: true,
+            }
+          }
+        }
       },
-
-      // Called when the work item is reset to its unmodified state (undo)
-      onReset: (args: any) => {},
-
-      // Called when the work item has been refreshed from the server
-      onRefreshed: (args: any) => {}
     }
   })
 }
