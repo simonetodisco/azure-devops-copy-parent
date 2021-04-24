@@ -14,5 +14,14 @@ The extension will copy the parent information whenever the `Parent` field is up
 ## Launch the extension locally
 All the information can be found [here](https://github.com/microsoft/azure-devops-extension-hot-reload-and-debug).
 
+## Changelog
+All notable changes to this project will be documented in this section.
+
+**0.2.1**
+- Fix a bug that prevents the information update, in case a work item is created directly from its parent
+
+**0.2.0**
+- Initial release
+
 ## Disclaimer
 Since I created this project pretty fast and sometimes understanding the APIs documentation was really difficult, please consider this as a very early beta version. In case you find bugs or you simply want to ask for new features feel free to open an issue, a PR or to [contact me](https://simonetodisco.com).

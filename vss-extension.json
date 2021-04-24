@@ -1,6 +1,6 @@
 {
   "manifestVersion": 1,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "name": "Copy Parent",
   "description": "This is extension allows you to automatically copy some work item parent's information.",
   "publisher": "simotod",
