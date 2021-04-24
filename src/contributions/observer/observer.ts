@@ -2,7 +2,6 @@ import * as SDK from 'azure-devops-extension-sdk'
 import { getClient } from 'azure-devops-extension-api'
 import { WorkItemTrackingRestClient, WorkItem } from 'azure-devops-extension-api/WorkItemTracking'
 import { SettingsService } from '../../services/settings'
-import { contentsOverflow } from 'VSS/Utils/UI'
 
 const register = async () => {
   await SDK.init()
@@ -12,7 +11,6 @@ const register = async () => {
     return {
       // Called when the active work item is modified
       onFieldChanged: async (args: any) => {
-        console.log(args)
         const curChildId = parseInt(args.id)
         const curParentId = args.changedFields['System.Parent']
         const curIdToParent = idToParent[curChildId]
@@ -23,19 +21,15 @@ const register = async () => {
             alreadyUpdated: false,
           }
         }
-        console.log('idToParent is: ', idToParent)
       },
 
       // Called after the work item has been saved
       onSaved: async (args: any) => {
-        console.log('saving....', args)
         const childId = args.id
         const { parentId, alreadyUpdated } = idToParent[childId]
 
         if (!childId || !parentId || alreadyUpdated) return
 
-        console.log('childId: ', childId)
-        console.log('parentId: ', parentId)
         const settingsService = new SettingsService()
         await settingsService.init()
 
@@ -59,7 +53,6 @@ const register = async () => {
           {}
         )
 
-        console.log('witems: ', workItems)
         const childWi = workItems[childId]
         const parentWi = workItems[parentId]
 
@@ -102,8 +95,9 @@ const register = async () => {
         idToParent[childId].alreadyUpdated = true
 
         /**
-          * This logic prevents an issue when a child is created from its parent. In this situation also the parent
-          * of the child's parent (grandparent) will call the onFieldChanged by including the parent field.
+          * This logic prevents an issue when a child is created from the parent work item. In this situation, also the
+          * parent triggers an onFieldChanged update, because the number of links is increased. Unfortunately even if
+          * it's not modified, the parent of the parent (grandparent) is included in the list of modified fields.
         */
         const grandParentId = parentWi.fields['System.Parent']
         if (grandParentId) {
